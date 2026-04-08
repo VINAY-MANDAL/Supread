@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/pdf_reader_flutter.iml" filepath="$PROJECT_DIR$/.idea/pdf_reader_flutter.iml" />
+      <module fileurl="file://$PROJECT_DIR$/readora_flutter.iml" filepath="$PROJECT_DIR$/readora_flutter.iml" />
+      <module fileurl="file://$PROJECT_DIR$/android/readora_flutter_android.iml" filepath="$PROJECT_DIR$/android/readora_flutter_android.iml" />
     </modules>
   </component>
 </project>
