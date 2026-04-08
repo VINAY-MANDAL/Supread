@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('READORA'),
+        title: const Text('supread'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         actions: [
@@ -60,18 +60,18 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                    Icon(Icons.picture_as_pdf, size: 80, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      'No recent files',
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
-                    ),
-                    SizedBox(height: 8),
-                    Text('Tap the button below to open a PDF file.'),
-                  ],
-                ),
-              )
-            : ListView.builder(
+                  Icon(Icons.picture_as_pdf, size: 80, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'No recent files',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                  SizedBox(height: 8),
+                  Text('Tap the button below to open a PDF file.'),
+                ],
+              ),
+            )
+          : ListView.builder(
               padding: const EdgeInsets.all(12),
               itemCount: recentFiles.length,
               itemBuilder: (_, index) {
@@ -81,17 +81,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListTile(
                     leading: const Icon(Icons.picture_as_pdf,
                         color: Colors.deepPurple, size: 36),
-                      title: Text(
-                        file.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        file.isWeb ? 'Web file' : (file.path ?? 'Unknown path'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11),
-                      ),
+                    title: Text(
+                      file.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      file.isWeb ? 'Web file' : (file.path ?? 'Unknown path'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11),
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () async {
                       await Navigator.push(
@@ -115,7 +115,3 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-
-
-
-
