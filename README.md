@@ -33,10 +33,9 @@ https://github.com/VINAY-MANDAL/Supread/releases
 
 ![image alt](https://github.com/VINAY-MANDAL/Supread/blob/3a7d705b294f5f6f4faa6e5ee2c6369750f0c533/picture-1.jpeg)
 
-![image alt](https://github.com/VINAY-MANDAL/Supread/blob/671dd1a7813a6534deedce59922c4f2120dde3e3/Home%20screen.jpg)
-
-
 ![image alt](https://github.com/VINAY-MANDAL/Supread/blob/3a7d705b294f5f6f4faa6e5ee2c6369750f0c533/picture-2.png)
+
+![image alt](https://github.com/VINAY-MANDAL/Supread/blob/671dd1a7813a6534deedce59922c4f2120dde3e3/Home%20screen.jpg)
 
 ---
 git 
