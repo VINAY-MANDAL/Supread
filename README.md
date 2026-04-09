@@ -1,154 +1,93 @@
-# Readora - Cross-Platform PDF Reader
+🚀 Supread
 
-A beautiful and modern PDF reader built with Flutter that works on multiple platforms.
+Supread is a Flutter-based project focused on building smart reading tools.
+Its first product, Adhyay, is a fast and clean PDF reader designed for a smooth reading experience.
 
-## Supported Platforms
+---
 
-- 🌐 **Web** - Run in any modern web browser
-- 📱 **Android** - Native Android app
-- 🍎 **iOS** - Native iOS app
-- 🖥️ **Windows** - Desktop application
-- 🐧 **Linux** - Desktop application
-- 🍎 **macOS** - Desktop application
+📱 Adhyay – Smart PDF Reader
 
-## Features
+Adhyay is a lightweight and user-friendly PDF reader built with Flutter.
+It focuses on performance, simplicity, and a distraction-free reading experience.
 
-- 📂 File picker integration for all platforms
-- 📖 Modern PDF viewing with Syncfusion PDF Viewer
-- 📱 Responsive design for mobile and desktop
-- 🌙 Clean, intuitive user interface
-- 💾 Recent files tracking
-- 🔍 Page navigation and zoom controls
+---
 
-## Platform-Specific Notes
+✨ Features
 
-### Web Platform
-- File picker works with drag & drop or click to select
-- PDF viewing interface is currently under development
-- Files are stored in browser local storage
+- 📄 Open and read PDF files easily
+- ⚡ Fast and smooth performance
+- 🎯 Clean and minimal UI
+- 📱 Mobile-friendly design
+- 🔄 Continuous improvements and updates
 
-### Desktop Platforms (Windows, Linux, macOS)
-- Native file picker integration
-- Full PDF viewing capabilities
-- Local file system access
+---
 
-### Mobile Platforms (Android, iOS)
-- Native file picker integration
-- Optimized for touch interfaces
-- Full PDF viewing capabilities
+📥 Download
 
-## Getting Started
+👉 Get the latest APK from the Releases section:
+https://github.com/VINAY-MANDAL/Supread/releases
 
-### Prerequisites
-- Flutter SDK (3.0.0 or higher)
-- Dart SDK
-- For mobile development: Android Studio / Xcode
-- For web development: Any modern web browser
+---
 
-### Installation
+🖼️ Screenshots
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd readora_flutter
-```
+Screenshot 2026-04-08 230530.png
+---
 
-2. Install dependencies:
-```bash
+🛠️ Built With
+
+- Flutter
+- Dart
+
+---
+
+🚀 Getting Started
+
+Prerequisites
+
+- Flutter SDK installed
+- Android Studio / VS Code
+
+Run Locally
+
+git clone https://github.com/VINAY-MANDAL/Supread.git
+cd Supread
 flutter pub get
-```
+flutter run
 
-3. Enable platforms (if not already enabled):
-```bash
-flutter config --enable-web
-flutter config --enable-windows-desktop
-flutter config --enable-linux-desktop
-flutter config --enable-macos-desktop
-```
+---
 
-### Running the App
+📌 Roadmap
 
-#### Web
-```bash
-flutter run -d web-server
-# or
-flutter run -d chrome
-```
+- [ ] PDF zoom improvements
+- [ ] Dark mode
+- [ ] Bookmark feature
+- [ ] Better UI/UX
+- [ ] Performance optimization
 
-#### Android
-```bash
-flutter run -d android
-```
+---
 
-#### iOS (macOS only)
-```bash
-flutter run -d ios
-```
+🤝 Contributing
 
-#### Windows
-```bash
-flutter run -d windows
-```
+Contributions are welcome!
+Feel free to fork the repo and submit a pull request.
 
-#### Linux
-```bash
-flutter run -d linux
-```
+---
 
-#### macOS
-```bash
-flutter run -d macos
-```
+📧 Contact
 
-## Building for Production
+For feedback or suggestions:
+Email: readora53@gmail.com (update if needed)
 
-### Web
-```bash
-flutter build web
-```
+---
 
-### Android APK
-```bash
-flutter build apk
-```
+📜 License
 
-### iOS
-```bash
-flutter build ios
-```
+This project is open-source and available under the MIT License.
 
-### Desktop
-```bash
-flutter build windows
-flutter build linux
-flutter build macos
-```
+---
 
-## Dependencies
+💡 About
 
-- `file_picker`: Cross-platform file picking
-- `syncfusion_flutter_pdfviewer`: PDF viewing (native platforms)
-- `shared_preferences`: Local data storage
-- `path_provider`: File system access
-- `universal_io`: Cross-platform I/O operations
-
-## Architecture
-
-The app follows a clean architecture pattern:
-
-- `lib/models/`: Data models
-- `lib/services/`: Business logic and external services
-- `lib/screens/`: UI screens and pages
-- `lib/widgets/`: Reusable UI components
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test on multiple platforms
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+Supread is an evolving platform aimed at building powerful and simple reading tools.
+This is just the beginning 🚀
