@@ -10,7 +10,7 @@ if (Test-Path $outputPath) {
     Get-ChildItem $outputPath -Filter "*.apk"
 } else {
     Write-Host "Output folder does not exist. Starting build..."
-    flutter build apk --release
+    cmd /c flutter build apk --release
     
     if (Test-Path $outputPath) {
         Write-Host "Build successful! APK files:"
