@@ -31,7 +31,7 @@ https://github.com/VINAY-MANDAL/Supread/releases
 
 🖼️ Screenshots
 
-![Home Screen] (Screenshot 2026-04-08 230530.png)
+![image alt](https://github.com/VINAY-MANDAL/Supread/blob/671dd1a7813a6534deedce59922c4f2120dde3e3/Home%20screen.jpg)
 
 
 ---
