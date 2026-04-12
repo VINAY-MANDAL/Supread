@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_doc_scanner/flutter_doc_scanner.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/pdf_file_data.dart';
 import '../services/pdf_service.dart';
 import 'recent_file.dart';
@@ -76,8 +77,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
       final name = 'Scan_${DateTime.now().millisecondsSinceEpoch}$ext';
       await PdfService.saveScannedFile(path: path, name: name);
       final fileData = PdfFileData(name: name, path: path, isWeb: false);
-      setState(() => _scannedFiles.insert(0, fileData));
+      if (mounted) {
+        setState(() => _scannedFiles.insert(0, fileData));
+      }
     }
+    await _loadScannedFiles(); // Refresh to ensure data is properly persisted
   }
 
   // ─── Open File ─────────────────────────────────────────────────────────────
@@ -89,6 +93,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
     final result = await OpenFilex.open(file.path!);
     if (result.type != ResultType.done && mounted) {
       _showSnack('Could not open: ${result.message}');
+    }
+  }
+
+  // ─── Share File ────────────────────────────────────────────────────────────
+  Future<void> _shareFile(PdfFileData file) async {
+    if (file.path == null) {
+      _showSnack('File path not found.');
+      return;
+    }
+    final fileToShare = File(file.path!);
+    if (await fileToShare.exists()) {
+      await Share.shareXFiles([XFile(file.path!)],
+          text: 'Check out this document: ${file.name}');
+    } else {
+      _showSnack('File does not exist on storage.');
     }
   }
 
@@ -123,8 +142,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
   List<String> _extractPaths(dynamic result) {
+    if (result == null) return [];
     if (result is String) return [result];
     if (result is List) return result.map((e) => e.toString()).toList();
+    if (result is Map) {
+      // Handle different formats returned by scanner plugins
+      final pdfPath = result['pdfPath'] ?? result['pdf'];
+      if (pdfPath != null) return [pdfPath.toString()];
+      final images = result['images'];
+      if (images is List) return images.map((e) => e.toString()).toList();
+    }
     return [result.toString()];
   }
 
@@ -174,10 +201,24 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   itemCount: _scannedFiles.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (ctx, i) {
-                    return RecentsFileCard(
-                      file: _scannedFiles[i],
-                      onDeleted: _loadScannedFiles,
-                      onRenamed: _loadScannedFiles,
+                    final file = _scannedFiles[i];
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        RecentsFileCard(
+                          file: file,
+                          onDeleted: _loadScannedFiles,
+                          onRenamed: _loadScannedFiles,
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () => _shareFile(file),
+                            icon: const Icon(Icons.share, size: 16),
+                            label: const Text('Share Document'),
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),

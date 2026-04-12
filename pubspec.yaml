@@ -16,6 +16,7 @@ dependencies:
   universal_io: ^2.2.2
   flutter_doc_scanner: ^0.0.19
   open_filex: ^4.7.0
+  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:
