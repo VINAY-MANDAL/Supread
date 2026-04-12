@@ -1,13 +1,15 @@
 #!/bin/bash
 
 # Set JAVA_HOME
-export JAVA_HOME="C:\\Program Files\\Android\\Android Studio\\jbr"
+export JAVA_HOME="C:/Program Files/Android/Android Studio/jbr"
 export PATH="$JAVA_HOME/bin:$PATH"
 
-cd E:/pdf_reader_flutter
+# Navigate to the directory where the script is located
+cd "$(dirname "$0")"
 
 echo "Starting APK build..."
-flutter build apk --release --no-shrink
+flutter clean
+flutter build apk --release --split-per-abi
 
 if [ -f "build/app/outputs/apk/release/app-release.apk" ]; then
     echo "SUCCESS: APK built successfully!"
