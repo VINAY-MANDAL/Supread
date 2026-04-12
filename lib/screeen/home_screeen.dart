@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/pdf_service.dart';
 import '../models/pdf_file_data.dart';
 import 'pdf_viewer_screen.dart';
+import '../scanner/scanner_screen.dart';
+import '../scanner/recent_file.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadRecent() async {
     final files = await PdfService.getRecent();
-    setState(() => recentFiles = files);
+    if (mounted) setState(() => recentFiles = files);
   }
 
   Future<void> _pickAndOpen() async {
@@ -29,28 +31,61 @@ class _HomeScreenState extends State<HomeScreen> {
     if (pdfData != null && mounted) {
       await Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => PdfViewerScreen(pdfData: pdfData),
-        ),
+        MaterialPageRoute(builder: (_) => PdfViewerScreen(pdfData: pdfData)),
       );
-      _loadRecent();
+      _loadRecent(); // ✅ Refresh after returning from viewer
     }
+  }
+
+  // ✅ Navigate to scanner and refresh recents when we come back
+  Future<void> _openScanner() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ScannerScreen()),
+    );
+    _loadRecent(); // ✅ Scanned PDFs will now appear in recents
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('supread'),
+        title: const Text('Supread'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         actions: [
+          // ✅ Scanner button in AppBar
+          IconButton(
+            icon: const Icon(Icons.document_scanner),
+            tooltip: 'Scan Document',
+            onPressed: _openScanner,
+          ),
+          // Clear all recents
           IconButton(
             icon: const Icon(Icons.delete_sweep),
-            tooltip: 'Clear Recent',
+            tooltip: 'Clear All Recents',
             onPressed: () async {
-              await PdfService.clearRecent();
-              _loadRecent();
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Clear All Recents?'),
+                  content: const Text(
+                      'This will remove all recent files from the list.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel')),
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Clear',
+                            style: TextStyle(color: Colors.red))),
+                  ],
+                ),
+              );
+              if (confirmed == true) {
+                await PdfService.clearRecent();
+                _loadRecent();
+              }
             },
           ),
         ],
@@ -62,53 +97,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Icon(Icons.picture_as_pdf, size: 80, color: Colors.grey),
                   SizedBox(height: 16),
-                  Text(
-                    'No recent files',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
+                  Text('No recent files',
+                      style: TextStyle(fontSize: 18, color: Colors.grey)),
                   SizedBox(height: 8),
-                  Text('Tap the button below to open a PDF file.'),
+                  Text('Open a PDF or scan a document to get started.'),
                 ],
               ),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(12),
               itemCount: recentFiles.length,
-              itemBuilder: (_, index) {
-                final file = recentFiles[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  child: ListTile(
-                    leading: const Icon(Icons.picture_as_pdf,
-                        color: Colors.deepPurple, size: 36),
-                    title: Text(
-                      file.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      file.isWeb ? 'Web file' : (file.path ?? 'Unknown path'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PdfViewerScreen(pdfData: file),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+              itemBuilder: (ctx, index) => RecentsFileCard(
+                file: recentFiles[index],
+                onDeleted: _loadRecent,
+              ),
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _pickAndOpen,
         icon: const Icon(Icons.folder_open),
-        label: const Text('open PDF'),
+        label: const Text('Open PDF'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
       ),

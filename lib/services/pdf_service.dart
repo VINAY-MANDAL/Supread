@@ -9,40 +9,25 @@ import '../models/pdf_file_data.dart';
 class PdfService {
   static const _recentKey = 'recent_pdfs';
 
-  // Pick a PDF file from device
+  // ─── Pick a PDF file from device ──────────────────────────────────────────
   static Future<PdfFileData?> pickPdf() async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        withData: kIsWeb, // For web, get file data
+        withData: kIsWeb,
       );
-
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.single;
-
         if (kIsWeb) {
-          // Web platform - use bytes
           if (file.bytes != null) {
-            final fileName = file.name;
-            await _saveRecentWeb(fileName, file.bytes!);
-            return PdfFileData(
-              name: fileName,
-              bytes: file.bytes,
-              isWeb: true,
-            );
+            await _saveRecentWeb(file.name, file.bytes!);
+            return PdfFileData(name: file.name, bytes: file.bytes, isWeb: true);
           }
         } else {
-          // Native platforms - use file path
           if (file.path != null) {
-            final path = file.path!;
-            final fileName = file.name;
-            await _saveRecent(path, fileName);
-            return PdfFileData(
-              name: fileName,
-              path: path,
-              isWeb: false,
-            );
+            await _saveRecent(file.path!, file.name);
+            return PdfFileData(name: file.name, path: file.path!, isWeb: false);
           }
         }
       }
@@ -52,48 +37,51 @@ class PdfService {
     return null;
   }
 
-  // Save recent list for native platforms
-  static Future<void> _saveRecent(String path, String name) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_recentKey);
-    List<Map<String, String>> list = [];
-    if (raw != null) {
-      list = List<Map<String, String>>.from(
-        (jsonDecode(raw) as List).map((e) => Map<String, String>.from(e)),
-      );
-    }
-
-    list.removeWhere((e) => e['path'] == path); // avoid duplicates
-    list.insert(0, {'path': path, 'name': name, 'platform': 'native'});
-    if (list.length > 10) list = list.sublist(0, 10); // keep only 10 recent
-    await prefs.setString(_recentKey, jsonEncode(list));
+  // ✅ Save a scanned file (called from ScannerScreen)
+  static Future<void> saveScannedFile(
+      {required String path, required String name}) async {
+    await _saveRecent(path, name);
   }
 
-  // Save recent list for web platform
-  static Future<void> _saveRecentWeb(String name, List<int> bytes) async {
+  // ─── Save recent — native ─────────────────────────────────────────────────
+  static Future<void> _saveRecent(String path, String name) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_recentKey);
     List<Map<String, dynamic>> list = [];
     if (raw != null) {
       list = List<Map<String, dynamic>>.from(
-        (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)),
-      );
+          (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)));
     }
+    list.removeWhere((e) => e['path'] == path);
+    list.insert(0, {'path': path, 'name': name, 'platform': 'native'});
+    if (list.length > 20) list = list.sublist(0, 20);
+    await prefs.setString(_recentKey, jsonEncode(list));
+  }
 
-    // For web, store a hash of the file content as identifier
+  // ─── Save recent — web ────────────────────────────────────────────────────
+  static Future<void> _saveRecentWeb(String name, List<int> bytes) async {
+    // ⚠️ Warning: SharedPreferences is not designed for large binary data.
+    // Base64 strings significantly increase memory usage and may hit storage limits.
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_recentKey);
+    List<Map<String, dynamic>> list = [];
+    if (raw != null) {
+      list = List<Map<String, dynamic>>.from(
+          (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)));
+    }
     final fileId = base64Encode(bytes.sublist(0, min(100, bytes.length)));
-    list.removeWhere((e) => e['id'] == fileId); // avoid duplicates
+    list.removeWhere((e) => e['id'] == fileId);
     list.insert(0, {
       'id': fileId,
       'name': name,
       'bytes': base64Encode(bytes),
-      'platform': 'web'
+      'platform': 'web',
     });
-    if (list.length > 10) list = list.sublist(0, 10); // keep only 10 recent
+    if (list.length > 20) list = list.sublist(0, 20);
     await prefs.setString(_recentKey, jsonEncode(list));
   }
 
-  // Load recent PDFs
+  // ─── Load recent PDFs ─────────────────────────────────────────────────────
   static Future<List<PdfFileData>> getRecent() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_recentKey);
@@ -118,9 +106,46 @@ class PdfService {
     }
     return [];
   }
-   // Clear all recent files
-    static Future<void> clearRecent() async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_recentKey);
+
+  // ✅ Delete one file from recent list
+  static Future<void> deleteRecent(PdfFileData fileToRemove) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_recentKey);
+    if (raw == null) return;
+    final list = (jsonDecode(raw) as List)
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    if (fileToRemove.isWeb) {
+      list.removeWhere((e) => e['name'] == fileToRemove.name);
+    } else {
+      list.removeWhere((e) => e['path'] == fileToRemove.path);
+    }
+    await prefs.setString(_recentKey, jsonEncode(list));
+  }
+
+  // ✅ Rename a file in the recent list
+  static Future<void> renameRecent(PdfFileData file, String newName) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_recentKey);
+    if (raw == null) return;
+    final list = (jsonDecode(raw) as List)
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    for (final item in list) {
+      if (file.isWeb && item['name'] == file.name) {
+        item['name'] = newName;
+        break;
+      } else if (!file.isWeb && item['path'] == file.path) {
+        item['name'] = newName;
+        break;
+      }
+    }
+    await prefs.setString(_recentKey, jsonEncode(list));
+  }
+
+  // ─── Clear ALL recent files ───────────────────────────────────────────────
+  static Future<void> clearRecent() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_recentKey);
   }
 }
