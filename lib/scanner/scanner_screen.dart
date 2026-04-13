@@ -40,6 +40,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     setState(() => _isScanning = true);
     try {
       final result = await FlutterDocScanner().getScanDocuments(page: 4);
+      debugPrint('Scanner Result: $result');
       if (!mounted) return;
       if (result != null) {
         await _saveScannedResult(result, isPdf: false);
@@ -57,6 +58,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     setState(() => _isScanning = true);
     try {
       final result = await FlutterDocScanner().getScannedDocumentAsPdf(page: 4);
+      debugPrint('PDF Scanner Result: $result');
       if (!mounted) return;
       if (result != null) {
         await _saveScannedResult(result, isPdf: true);
@@ -73,6 +75,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
   Future<void> _saveScannedResult(dynamic result, {required bool isPdf}) async {
     final paths = _extractPaths(result);
     for (final path in paths) {
+      debugPrint('Processing path: $path');
+      if (!File(path).existsSync()) {
+        debugPrint('CRITICAL: Scanned file does not exist at path: $path');
+      }
+
       final ext = isPdf ? '.pdf' : '.jpg';
       final name = 'Scan_${DateTime.now().millisecondsSinceEpoch}$ext';
       await PdfService.saveScannedFile(path: path, name: name);
@@ -87,9 +94,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
   // ─── Open File ─────────────────────────────────────────────────────────────
   Future<void> _openFile(PdfFileData file) async {
     if (file.path == null || !File(file.path!).existsSync()) {
+      debugPrint('Error: Cannot open file. Path: ${file.path}');
       _showSnack('File not found on device.');
       return;
     }
+
+    debugPrint('Opening file: ${file.path}');
     final result = await OpenFilex.open(file.path!);
     if (result.type != ResultType.done && mounted) {
       _showSnack('Could not open: ${result.message}');
@@ -143,16 +153,41 @@ class _ScannerScreenState extends State<ScannerScreen> {
   // ─── Helpers ───────────────────────────────────────────────────────────────
   List<String> _extractPaths(dynamic result) {
     if (result == null) return [];
-    if (result is String) return [result];
-    if (result is List) return result.map((e) => e.toString()).toList();
-    if (result is Map) {
-      // Handle different formats returned by scanner plugins
-      final pdfPath = result['pdfPath'] ?? result['pdf'];
-      if (pdfPath != null) return [pdfPath.toString()];
-      final images = result['images'];
-      if (images is List) return images.map((e) => e.toString()).toList();
+
+    List<String> rawPaths = [];
+    if (result is String) {
+      rawPaths = [result];
+    } else if (result is List) {
+      rawPaths = result.map((e) => e.toString()).toList();
+    } else if (result is Map) {
+      // Handle various keys returned by different versions of scanner plugins
+      final pdfPath = result['pdfPath'] ??
+          result['pdf'] ??
+          result['path'] ??
+          result['pdf_path'];
+      if (pdfPath != null) {
+        rawPaths = [pdfPath.toString()];
+      } else {
+        final images = result['images'] ?? result['imagePaths'];
+        if (images is List) {
+          rawPaths = images.map((e) => e.toString()).toList();
+        }
+      }
     }
-    return [result.toString()];
+
+    // Sanitize paths: Remove 'file://' prefix and trim whitespace
+    return rawPaths
+        .map((p) {
+          String sanitized = p.trim();
+          // Remove common URI prefixes that dart:io can't handle
+          if (sanitized.startsWith('file://')) {
+            sanitized = sanitized.replaceFirst('file://', '');
+          }
+          // On some Android builds, multiple slashes can occur
+          return sanitized.replaceAll('///', '/').replaceAll('//', '/');
+        })
+        .where((p) => p.isNotEmpty)
+        .toList();
   }
 
   void _showSnack(String msg) {
