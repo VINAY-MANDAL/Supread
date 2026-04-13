@@ -110,6 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
               itemBuilder: (ctx, index) => RecentsFileCard(
                 file: recentFiles[index],
                 onDeleted: _loadRecent,
+                onRenamed: _loadRecent,
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(

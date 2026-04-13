@@ -43,7 +43,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       debugPrint('Scanner Result: $result');
       if (!mounted) return;
       if (result != null) {
-        await _saveScannedResult(result, isPdf: false);
+        await _saveScannedResult(result, isPdfRequested: false);
         _showSnack('Document scanned successfully!');
       }
     } on PlatformException catch (e) {
@@ -61,7 +61,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       debugPrint('PDF Scanner Result: $result');
       if (!mounted) return;
       if (result != null) {
-        await _saveScannedResult(result, isPdf: true);
+        await _saveScannedResult(result, isPdfRequested: true);
         _showSnack('PDF scanned successfully!');
       }
     } on PlatformException catch (e) {
@@ -72,23 +72,37 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   // ✅ Save scanned result into PdfService so HomeScreen recents also updates
-  Future<void> _saveScannedResult(dynamic result, {required bool isPdf}) async {
-    final paths = _extractPaths(result);
-    for (final path in paths) {
-      debugPrint('Processing path: $path');
-      if (!File(path).existsSync()) {
-        debugPrint('CRITICAL: Scanned file does not exist at path: $path');
-      }
+  Future<void> _saveScannedResult(dynamic result,
+      {required bool isPdfRequested}) async {
+    final paths = _extractPaths(result, isPdfRequested);
+    debugPrint('--- Verification Start ---');
+    debugPrint('Extracted ${paths.length} paths from scanner.');
 
-      final ext = isPdf ? '.pdf' : '.jpg';
-      final name = 'Scan_${DateTime.now().millisecondsSinceEpoch}$ext';
+    for (final path in paths) {
+      final file = File(path);
+      debugPrint('Step 1: Checking source file at: $path');
+      debugPrint('Source file exists: ${file.existsSync()}');
+
+      if (!file.existsSync()) continue;
+
+      // Determine extension based on actual file path, fallback to requested
+      final ext = path.toLowerCase().endsWith('.pdf') ? '.pdf' : '.jpg';
+      final name = 'Scan_${DateTime.now().microsecondsSinceEpoch}$ext';
+
+      debugPrint('Step 2: Attempting to save as $name via PdfService...');
       await PdfService.saveScannedFile(path: path, name: name);
-      final fileData = PdfFileData(name: name, path: path, isWeb: false);
-      if (mounted) {
-        setState(() => _scannedFiles.insert(0, fileData));
-      }
     }
-    await _loadScannedFiles(); // Refresh to ensure data is properly persisted
+
+    // Reload files after saving to ensure we have the updated permanent paths
+    await _loadScannedFiles();
+
+    debugPrint('Step 3: Verification after reload:');
+    for (var f in _scannedFiles) {
+      final exists = f.path != null && File(f.path!).existsSync();
+      debugPrint(
+          'File in List: ${f.name} | Path: ${f.path} | Exists on disk: $exists');
+    }
+    debugPrint('--- Verification End ---');
   }
 
   // ─── Open File ─────────────────────────────────────────────────────────────
@@ -151,7 +165,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
-  List<String> _extractPaths(dynamic result) {
+  List<String> _extractPaths(dynamic result, bool isPdfRequested) {
     if (result == null) return [];
 
     List<String> rawPaths = [];
@@ -160,31 +174,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
     } else if (result is List) {
       rawPaths = result.map((e) => e.toString()).toList();
     } else if (result is Map) {
-      // Handle various keys returned by different versions of scanner plugins
-      final pdfPath = result['pdfPath'] ??
-          result['pdf'] ??
-          result['path'] ??
-          result['pdf_path'];
-      if (pdfPath != null) {
-        rawPaths = [pdfPath.toString()];
+      dynamic val;
+      if (isPdfRequested) {
+        val = result['pdfPath'] ??
+            result['pdf'] ??
+            result['pdf_path'] ??
+            result['path'];
       } else {
-        final images = result['images'] ?? result['imagePaths'];
-        if (images is List) {
-          rawPaths = images.map((e) => e.toString()).toList();
-        }
+        val = result['images'] ?? result['imagePaths'] ?? result['path'];
+      }
+
+      if (val is List) {
+        rawPaths = val.map((e) => e.toString()).toList();
+      } else if (val != null) {
+        rawPaths = [val.toString()];
       }
     }
 
-    // Sanitize paths: Remove 'file://' prefix and trim whitespace
     return rawPaths
         .map((p) {
-          String sanitized = p.trim();
-          // Remove common URI prefixes that dart:io can't handle
-          if (sanitized.startsWith('file://')) {
-            sanitized = sanitized.replaceFirst('file://', '');
-          }
-          // On some Android builds, multiple slashes can occur
-          return sanitized.replaceAll('///', '/').replaceAll('//', '/');
+          String sanitized = Uri.decodeFull(p.trim());
+          // Handles file:/, file://, and file:/// prefixes robustly
+          sanitized = sanitized.replaceFirst(RegExp(r'^file:/{1,3}'), '/');
+          return sanitized.replaceAll(RegExp(r'/+'), '/');
         })
         .where((p) => p.isNotEmpty)
         .toList();
