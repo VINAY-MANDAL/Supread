@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/pdf_file_data.dart';
 import '../services/pdf_service.dart';
+import '../screeen/pdf_viewer_screen.dart'; // ✅ Added internal viewer import
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -110,10 +111,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
       _showSnack('File not found on device.');
       return;
     }
-    final result = await OpenFilex.open(file.path!);
-    if (result.type != ResultType.done && mounted) {
-      _showSnack('Could not open: ${result.message}');
-    }
+
+    // ✅ FIX: Use in-app viewer instead of external OpenFilex
+    // This ensures files in internal storage can actually be opened.
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => PdfViewerScreen(pdfData: file)),
+    );
+    _loadScannedFiles();
   }
 
   // ─── Share File ────────────────────────────────────────────────────────────

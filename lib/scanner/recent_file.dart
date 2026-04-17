@@ -1,42 +1,49 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/pdf_file_data.dart';
 import '../services/pdf_service.dart';
 
-/// A reusable card widget for displaying a recent PDF/scanned file.
-/// Shows file name, path, and provides Open + Delete actions.
+/// Reusable card for recent PDF/scanned files.
+/// onOpen → in-app viewer ke liye (HomeScreen se pass hota hai)
 class RecentsFileCard extends StatelessWidget {
   final PdfFileData file;
-  final VoidCallback onDeleted; // called after delete so parent refreshes
-  final VoidCallback? onRenamed; // optional callback for rename
+  final VoidCallback onDeleted;
+  final VoidCallback? onRenamed;
+  final void Function(PdfFileData)? onOpen; // ✅ NEW: in-app open callback
 
   const RecentsFileCard({
     super.key,
     required this.file,
     required this.onDeleted,
     this.onRenamed,
+    this.onOpen,
   });
 
-  Future<void> _open(BuildContext context) async {
-    if (file.isWeb) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Open not supported on web yet.')),
-      );
-      return;
-    }
+  // ✅ In-app open (PDF viewer ya image viewer)
+  void _open(BuildContext context) {
     if (file.path == null || !File(file.path!).existsSync()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('File not found on device.')),
       );
       return;
     }
-    final result = await OpenFilex.open(file.path!);
-    if (result.type != ResultType.done && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open: ${result.message}')),
-      );
+    if (onOpen != null) {
+      onOpen!(file);
     }
+  }
+
+  Future<void> _share(BuildContext context) async {
+    if (file.path == null || !File(file.path!).existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File not found.')),
+      );
+      return;
+    }
+    await Share.shareXFiles(
+      [XFile(file.path!)],
+      text: 'Document: ${file.name}',
+    );
   }
 
   Future<void> _delete(BuildContext context) async {
@@ -56,13 +63,12 @@ class RecentsFileCard extends StatelessWidget {
       ),
     );
     if (confirmed == true) {
-      // Delete physical file from disk (if native)
       if (!file.isWeb && file.path != null) {
         final f = File(file.path!);
         if (f.existsSync()) await f.delete();
       }
       await PdfService.deleteRecent(file);
-      onDeleted(); // notify parent to refresh
+      onDeleted();
     }
   }
 
@@ -89,26 +95,44 @@ class RecentsFileCard extends StatelessWidget {
 
     if (newName != null && newName.isNotEmpty && newName != file.name) {
       await PdfService.renameRecent(file, newName);
-      if (onRenamed != null) {
-        onRenamed!();
-      } else {
-        onDeleted(); // Default fallback to refresh list
-      }
+      (onRenamed ?? onDeleted)();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isPdf = file.name.toLowerCase().endsWith('.pdf');
+    final isImage = file.name.toLowerCase().endsWith('.jpg') ||
+        file.name.toLowerCase().endsWith('.jpeg') ||
+        file.name.toLowerCase().endsWith('.png');
+
+    // ✅ Image thumbnail (agar local file exist kare)
+    Widget leadingWidget;
+    if (isImage && file.path != null && File(file.path!).existsSync()) {
+      leadingWidget = ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.file(
+          File(file.path!),
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              const Icon(Icons.image, color: Colors.blueAccent, size: 36),
+        ),
+      );
+    } else {
+      leadingWidget = Icon(
+        isPdf ? Icons.picture_as_pdf : Icons.image,
+        color: isPdf ? Colors.red : Colors.blueAccent,
+        size: 36,
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       elevation: 2,
       child: ListTile(
-        leading: Icon(
-          isPdf ? Icons.picture_as_pdf : Icons.image,
-          color: isPdf ? Colors.red : Colors.blueAccent,
-          size: 36,
-        ),
+        leading: leadingWidget,
         title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(
           file.isWeb ? 'Web file' : (file.path ?? ''),
@@ -116,10 +140,11 @@ class RecentsFileCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 11),
         ),
-        onTap: () => _open(context),
+        onTap: () => _open(context), // ✅ In-app open
         trailing: PopupMenuButton<String>(
           onSelected: (action) {
             if (action == 'open') _open(context);
+            if (action == 'share') _share(context);
             if (action == 'delete') _delete(context);
             if (action == 'rename') _rename(context);
           },
@@ -128,6 +153,11 @@ class RecentsFileCard extends StatelessWidget {
                 value: 'open',
                 child: ListTile(
                     leading: Icon(Icons.open_in_new), title: Text('Open'))),
+            PopupMenuItem(
+                value: 'share',
+                child: ListTile(
+                    leading: Icon(Icons.share, color: Colors.blue),
+                    title: Text('Share'))),
             PopupMenuItem(
                 value: 'rename',
                 child:

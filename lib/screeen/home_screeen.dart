@@ -3,7 +3,7 @@ import '../services/pdf_service.dart';
 import '../models/pdf_file_data.dart';
 import 'pdf_viewer_screen.dart';
 import '../scanner/scanner_screen.dart';
-import '../scanner/recent_file.dart';
+import '../widgets/recents_file_card.dart'; // ✅ FIXED: correct path
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,17 +33,19 @@ class _HomeScreenState extends State<HomeScreen> {
         context,
         MaterialPageRoute(builder: (_) => PdfViewerScreen(pdfData: pdfData)),
       );
-      _loadRecent(); // ✅ Refresh after returning from viewer
+      _loadRecent();
     }
   }
 
-  // ✅ Navigate to scanner and refresh recents when we come back
   Future<void> _openScanner() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ScannerScreen()),
     );
-    _loadRecent(); // ✅ Scanned PDFs will now appear in recents
+    // ✅ FIX: Added a small delay to ensure the database/service is updated
+    // before refreshing the Home Screen list.
+    await Future.delayed(const Duration(milliseconds: 500));
+    _loadRecent();
   }
 
   @override
@@ -54,13 +56,11 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         actions: [
-          // ✅ Scanner button in AppBar
           IconButton(
             icon: const Icon(Icons.document_scanner),
             tooltip: 'Scan Document',
             onPressed: _openScanner,
           ),
-          // Clear all recents
           IconButton(
             icon: const Icon(Icons.delete_sweep),
             tooltip: 'Clear All Recents',
@@ -111,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 file: recentFiles[index],
                 onDeleted: _loadRecent,
                 onRenamed: _loadRecent,
+                onOpen: (file) => _openFileInApp(file), // ✅ In-app viewer
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
@@ -121,5 +122,16 @@ class _HomeScreenState extends State<HomeScreen> {
         foregroundColor: Colors.white,
       ),
     );
+  }
+
+  // ✅ PDF aur Image dono ko in-app open kare
+  Future<void> _openFileInApp(PdfFileData file) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfViewerScreen(pdfData: file),
+      ),
+    );
+    _loadRecent();
   }
 }
