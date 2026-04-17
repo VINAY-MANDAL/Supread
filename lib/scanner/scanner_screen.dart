@@ -4,9 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_doc_scanner/flutter_doc_scanner.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/pdf_file_data.dart';
 import '../services/pdf_service.dart';
-import 'recent_file.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -25,7 +26,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
     _loadScannedFiles();
   }
 
-  // Load scanned files from PdfService (those whose name starts with 'Scan_')
   Future<void> _loadScannedFiles() async {
     final all = await PdfService.getRecent();
     if (mounted) {
@@ -40,11 +40,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
     setState(() => _isScanning = true);
     try {
       final result = await FlutterDocScanner().getScanDocuments(page: 4);
-      debugPrint('Scanner Result: $result');
       if (!mounted) return;
       if (result != null) {
         await _saveScannedResult(result, isPdfRequested: false);
-        _showSnack('Document scanned successfully!');
+        _showSnack('Document scanned and saved!');
       }
     } on PlatformException catch (e) {
       _showSnack('Scan failed: ${e.message}');
@@ -58,11 +57,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
     setState(() => _isScanning = true);
     try {
       final result = await FlutterDocScanner().getScannedDocumentAsPdf(page: 4);
-      debugPrint('PDF Scanner Result: $result');
       if (!mounted) return;
       if (result != null) {
         await _saveScannedResult(result, isPdfRequested: true);
-        _showSnack('PDF scanned successfully!');
+        _showSnack('PDF scanned and saved!');
       }
     } on PlatformException catch (e) {
       _showSnack('PDF scan failed: ${e.message}');
@@ -71,49 +69,47 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
   }
 
-  // ✅ Save scanned result into PdfService so HomeScreen recents also updates
+  // ✅ KEY FIX: Scan hone ke baad file ko permanent app directory mein copy karo
   Future<void> _saveScannedResult(dynamic result,
       {required bool isPdfRequested}) async {
     final paths = _extractPaths(result, isPdfRequested);
-    debugPrint('--- Verification Start ---');
-    debugPrint('Extracted ${paths.length} paths from scanner.');
 
-    for (final path in paths) {
-      final file = File(path);
-      debugPrint('Step 1: Checking source file at: $path');
-      debugPrint('Source file exists: ${file.existsSync()}');
+    // App ki permanent internal directory
+    final appDir = await getApplicationDocumentsDirectory();
+    final scansDir = Directory('${appDir.path}/scans');
+    if (!scansDir.existsSync()) {
+      scansDir.createSync(recursive: true);
+    }
 
-      if (!file.existsSync()) continue;
+    for (final tempPath in paths) {
+      final sourceFile = File(tempPath);
+      if (!sourceFile.existsSync()) {
+        debugPrint('Source file not found: $tempPath');
+        continue;
+      }
 
-      // Determine extension based on actual file path, fallback to requested
-      final ext = path.toLowerCase().endsWith('.pdf') ? '.pdf' : '.jpg';
+      final ext = tempPath.toLowerCase().endsWith('.pdf') ? '.pdf' : '.jpg';
       final name = 'Scan_${DateTime.now().microsecondsSinceEpoch}$ext';
 
-      debugPrint('Step 2: Attempting to save as $name via PdfService...');
-      await PdfService.saveScannedFile(path: path, name: name);
+      // ✅ Temporary path se permanent path mein copy karo
+      final permanentPath = '${scansDir.path}/$name';
+      await sourceFile.copy(permanentPath);
+
+      debugPrint('Saved permanently at: $permanentPath');
+
+      // ✅ PdfService mein permanent path save karo
+      await PdfService.saveScannedFile(path: permanentPath, name: name);
     }
 
-    // Reload files after saving to ensure we have the updated permanent paths
     await _loadScannedFiles();
-
-    debugPrint('Step 3: Verification after reload:');
-    for (var f in _scannedFiles) {
-      final exists = f.path != null && File(f.path!).existsSync();
-      debugPrint(
-          'File in List: ${f.name} | Path: ${f.path} | Exists on disk: $exists');
-    }
-    debugPrint('--- Verification End ---');
   }
 
   // ─── Open File ─────────────────────────────────────────────────────────────
   Future<void> _openFile(PdfFileData file) async {
     if (file.path == null || !File(file.path!).existsSync()) {
-      debugPrint('Error: Cannot open file. Path: ${file.path}');
       _showSnack('File not found on device.');
       return;
     }
-
-    debugPrint('Opening file: ${file.path}');
     final result = await OpenFilex.open(file.path!);
     if (result.type != ResultType.done && mounted) {
       _showSnack('Could not open: ${result.message}');
@@ -127,17 +123,66 @@ class _ScannerScreenState extends State<ScannerScreen> {
       return;
     }
     final fileToShare = File(file.path!);
-    if (await fileToShare.exists()) {
-      await Share.shareXFiles([XFile(file.path!)],
-          text: 'Check out this document: ${file.name}');
-    } else {
+    if (!fileToShare.existsSync()) {
       _showSnack('File does not exist on storage.');
+      return;
+    }
+    await Share.shareXFiles(
+      [XFile(file.path!)],
+      text: 'Document: ${file.name}',
+    );
+  }
+
+  // ─── Save to Downloads ─────────────────────────────────────────────────────
+  Future<void> _saveToDownloads(PdfFileData file) async {
+    if (file.path == null || !File(file.path!).existsSync()) {
+      _showSnack('File not found.');
+      return;
+    }
+
+    // Android par storage permission maango
+    if (Platform.isAndroid) {
+      final status = await Permission.storage.request();
+      // Android 13+ ke liye manage external storage
+      if (!status.isGranted) {
+        final manage = await Permission.manageExternalStorage.request();
+        if (!manage.isGranted) {
+          _showSnack('Storage permission denied.');
+          return;
+        }
+      }
+    }
+
+    try {
+      // Downloads folder path
+      Directory? downloadsDir;
+      if (Platform.isAndroid) {
+        downloadsDir = Directory('/storage/emulated/0/Download');
+        if (!downloadsDir.existsSync()) {
+          downloadsDir = await getExternalStorageDirectory();
+        }
+      } else if (Platform.isIOS) {
+        downloadsDir = await getApplicationDocumentsDirectory();
+      }
+
+      if (downloadsDir == null) {
+        _showSnack('Could not find Downloads folder.');
+        return;
+      }
+
+      final destPath = '${downloadsDir.path}/${file.name}';
+      await File(file.path!).copy(destPath);
+
+      if (mounted) {
+        _showSnack('Saved to Downloads: ${file.name}');
+      }
+    } catch (e) {
+      _showSnack('Save failed: $e');
     }
   }
 
   // ─── Delete File ───────────────────────────────────────────────────────────
-  Future<void> _deleteFile(int index) async {
-    final file = _scannedFiles[index];
+  Future<void> _deleteFile(PdfFileData file) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -159,7 +204,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         if (f.existsSync()) await f.delete();
       }
       await PdfService.deleteRecent(file);
-      setState(() => _scannedFiles.removeAt(index));
+      _loadScannedFiles();
       _showSnack('File deleted.');
     }
   }
@@ -193,10 +238,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     return rawPaths
         .map((p) {
-          String sanitized = Uri.decodeFull(p.trim());
-          // Handles file:/, file://, and file:/// prefixes robustly
-          sanitized = sanitized.replaceFirst(RegExp(r'^file:/{1,3}'), '/');
-          return sanitized.replaceAll(RegExp(r'/+'), '/');
+          String s = Uri.decodeFull(p.trim());
+          s = s.replaceFirst(RegExp(r'^file:/{1,3}'), '/');
+          return s.replaceAll(RegExp(r'/+'), '/');
         })
         .where((p) => p.isNotEmpty)
         .toList();
@@ -205,6 +249,76 @@ class _ScannerScreenState extends State<ScannerScreen> {
   void _showSnack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // ─── File Action Bottom Sheet ───────────────────────────────────────────────
+  void _showFileOptions(PdfFileData file) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                file.name,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.open_in_new, color: Colors.deepPurple),
+              title: const Text('Open'),
+              onTap: () {
+                Navigator.pop(context);
+                _openFile(file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share, color: Colors.blue),
+              title: const Text('Share'),
+              onTap: () {
+                Navigator.pop(context);
+                _shareFile(file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.download, color: Colors.green),
+              title: const Text('Save to Downloads'),
+              onTap: () {
+                Navigator.pop(context);
+                _saveToDownloads(file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Delete', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteFile(file);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   // ─── UI ────────────────────────────────────────────────────────────────────
@@ -243,29 +357,47 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     ],
                   ),
                 )
-              : ListView.separated(
+              : ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: _scannedFiles.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (ctx, i) {
                     final file = _scannedFiles[i];
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        RecentsFileCard(
-                          file: file,
-                          onDeleted: _loadScannedFiles,
-                          onRenamed: _loadScannedFiles,
+                    final isImage = !file.name.toLowerCase().endsWith('.pdf');
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      elevation: 2,
+                      child: ListTile(
+                        leading: Icon(
+                          isImage ? Icons.image : Icons.picture_as_pdf,
+                          color: isImage ? Colors.blueAccent : Colors.red,
+                          size: 36,
                         ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _shareFile(file),
-                            icon: const Icon(Icons.share, size: 16),
-                            label: const Text('Share Document'),
-                          ),
+                        title: Text(file.name,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                          file.path ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11),
                         ),
-                      ],
+                        onTap: () => _openFile(file),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.share, color: Colors.blue),
+                              tooltip: 'Share',
+                              onPressed: () => _shareFile(file),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.more_vert),
+                              tooltip: 'More options',
+                              onPressed: () => _showFileOptions(file),
+                            ),
+                          ],
+                        ),
+                      ),
                     );
                   },
                 ),
