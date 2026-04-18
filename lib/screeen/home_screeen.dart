@@ -3,7 +3,7 @@ import '../services/pdf_service.dart';
 import '../models/pdf_file_data.dart';
 import 'pdf_viewer_screen.dart';
 import '../scanner/scanner_screen.dart';
-import '../widgets/recents_file_card.dart'; // ✅ FIXED: correct path
+import '../widgets/recents_file_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
