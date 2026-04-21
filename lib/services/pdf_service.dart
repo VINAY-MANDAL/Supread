@@ -37,10 +37,19 @@ class PdfService {
     return null;
   }
 
-  // ✅ Save a scanned file (called from ScannerScreen)
-  static Future<void> saveScannedFile(
-      {required String path, required String name}) async {
-    await _saveRecent(path, name);
+  // ✅ FIXED: Save a scanned file (called from ScannerScreen)
+  // Returns PdfFileData so caller can open it directly if needed
+  static Future<PdfFileData?> saveScannedFile({
+    required String path,
+    required String name,
+  }) async {
+    try {
+      await _saveRecent(path, name);
+      return PdfFileData(name: name, path: path, isWeb: false);
+    } catch (e) {
+      developer.log('Error saving scanned file: $e');
+      return null;
+    }
   }
 
   // ─── Save recent — native ─────────────────────────────────────────────────
@@ -60,8 +69,6 @@ class PdfService {
 
   // ─── Save recent — web ────────────────────────────────────────────────────
   static Future<void> _saveRecentWeb(String name, List<int> bytes) async {
-    // ⚠️ Warning: SharedPreferences is not designed for large binary data.
-    // Base64 strings significantly increase memory usage and may hit storage limits.
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_recentKey);
     List<Map<String, dynamic>> list = [];
