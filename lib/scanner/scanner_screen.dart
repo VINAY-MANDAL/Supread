@@ -3,6 +3,8 @@ import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../services/pdf_service.dart';
 
 class ScannerScreen extends StatefulWidget {
@@ -50,16 +52,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
         return;
       }
 
-      // Har scanned page ko save karo
-      for (final String tempPath in scannedPaths) {
-        await _saveScannedFile(tempPath);
-      }
+      // ✅ Saare scanned pages ko ek single PDF mein convert karo
+      await _convertImagesToPdf(scannedPaths);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                '${scannedPaths.length} page(s) scanned & saved to Downloads!'),
+            content:
+                Text('${scannedPaths.length} page(s) scanned & saved as PDF!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -80,39 +80,61 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
   }
 
-  /// Scanned image ko app folder + Downloads dono me save karo
-  Future<void> _saveScannedFile(String tempPath) async {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final fileName = 'Scan_$timestamp.jpg';
+  /// ✅ Multiple scanned images ko ek PDF mein convert karo
+  Future<void> _convertImagesToPdf(List<String> imagePaths) async {
+    final pdf = pw.Document();
 
-    // 1. App ke documents folder me copy karo (in-app open ke liye)
+    for (final imagePath in imagePaths) {
+      final imageFile = File(imagePath);
+      if (!imageFile.existsSync()) continue;
+
+      final imageBytes = await imageFile.readAsBytes();
+      final image = pw.MemoryImage(imageBytes);
+
+      // Har image ko ek PDF page pe full-page add karo
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (pw.Context context) {
+            return pw.Image(image, fit: pw.BoxFit.contain);
+          },
+        ),
+      );
+    }
+
+    // PDF bytes generate karo
+    final pdfBytes = await pdf.save();
+
+    // File name timestamp se banao
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = 'Scan_$timestamp.pdf';
+
+    // App ke documents/scans folder mein save karo
     final appDir = await getApplicationDocumentsDirectory();
     final scansDir = Directory('${appDir.path}/scans');
     if (!scansDir.existsSync()) scansDir.createSync(recursive: true);
 
     final savedFile = File('${scansDir.path}/$fileName');
-    await File(tempPath).copy(savedFile.path);
+    await savedFile.writeAsBytes(pdfBytes);
 
-    // 2. Downloads folder me bhi save karo
+    // Downloads folder mein bhi save karo
     await _saveToDownloads(savedFile, fileName);
 
-    // 3. Recent files me register karo
+    // Recent files mein register karo
     await PdfService.saveScannedFile(
       path: savedFile.path,
       name: fileName,
     );
   }
 
-  /// Android Downloads folder me file save karo
+  /// Android Downloads folder mein PDF save karo
   Future<void> _saveToDownloads(File sourceFile, String fileName) async {
     try {
-      // Android 13+ ke liye MANAGE_EXTERNAL_STORAGE ya MediaStore use karo
-      // Pehle storage permission check karo
       PermissionStatus storageStatus;
       if (Platform.isAndroid) {
         storageStatus = await Permission.manageExternalStorage.request();
         if (!storageStatus.isGranted) {
-          // Fallback: old API
           storageStatus = await Permission.storage.request();
         }
       } else {
@@ -120,7 +142,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
       }
 
       if (storageStatus.isGranted) {
-        // Standard Downloads path
         const downloadsPath = '/storage/emulated/0/Download';
         final downloadsDir = Directory(downloadsPath);
         if (downloadsDir.existsSync()) {
@@ -128,7 +149,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
           await sourceFile.copy(destFile.path);
         }
       } else {
-        // Permission nahi mili — external storage dir try karo
         final extDir = await getExternalStorageDirectory();
         if (extDir != null) {
           final destFile = File('${extDir.path}/$fileName');
@@ -136,7 +156,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
         }
       }
     } catch (e) {
-      // Downloads me save nahi hua lekin app me toh save ho gaya
       debugPrint('Could not save to Downloads: $e');
     }
   }
@@ -153,7 +172,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   CircularProgressIndicator(color: Colors.deepPurple),
                   SizedBox(height: 20),
                   Text(
-                    'Scanning...',
+                    'Scanning & Converting to PDF...',
                     style: TextStyle(color: Colors.white, fontSize: 18),
                   ),
                 ],
