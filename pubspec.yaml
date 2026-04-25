@@ -4,12 +4,13 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.0.0<4.0.0"
+  sdk: ">=2.12.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   file_picker: ^8.1.2
+  google_fonts: ^6.2.1
   syncfusion_flutter_pdfviewer: ^31.1.17
   shared_preferences: ^2.3.3
   path_provider: ^2.1.2
