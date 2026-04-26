@@ -44,9 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(builder: (_) => const ScannerScreen()),
     );
-    // ✅ FIX: Added a small delay to ensure the database/service is updated
-    // before refreshing the Home Screen list.
-    await Future.delayed(const Duration(milliseconds: 500));
     _loadRecent();
   }
 
@@ -55,8 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Adhyay'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
         actions: [
           // Theme Toggle Widget
           ValueListenableBuilder<ThemeMode>(
@@ -134,8 +129,6 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: _pickAndOpen,
         icon: const Icon(Icons.folder_open),
         label: const Text('Open PDF'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
       ),
     );
   }

@@ -5,6 +5,11 @@ final ThemeData lightAppTheme = ThemeData(
   useMaterial3: true,
   brightness: Brightness.light,
   colorSchemeSeed: Colors.deepPurple,
+  appBarTheme: const AppBarTheme(
+    backgroundColor: Colors.deepPurple,
+    foregroundColor: Colors.white,
+    elevation: 0,
+  ),
 );
 
 // 2. Dark Theme ko define karein
@@ -12,4 +17,9 @@ final ThemeData darkAppTheme = ThemeData(
   useMaterial3: true,
   brightness: Brightness.dark,
   colorSchemeSeed: Colors.deepPurple,
+  appBarTheme: AppBarTheme(
+    backgroundColor: Colors.grey[900],
+    foregroundColor: Colors.white,
+    elevation: 0,
+  ),
 );

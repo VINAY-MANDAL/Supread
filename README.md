@@ -62,7 +62,7 @@ flutter run
 📌 Roadmap
 
 - [ ] PDF zoom improvements
-- [ ] Dark mode
+- [x] Dark mode
 - [ ] Bookmark feature
 - [ ] Better UI/UX
 - [ ] Performance optimization
