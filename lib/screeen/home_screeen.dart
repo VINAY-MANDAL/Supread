@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:light_dark_theme_toggle/light_dark_theme_toggle.dart';
 import '../services/pdf_service.dart';
 import '../models/pdf_file_data.dart';
 import 'pdf_viewer_screen.dart';
 import '../scanner/scanner_screen.dart';
 import '../widgets/recents_file_card.dart';
+import '../main.dart'; // themeNotifier ke liye import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -56,6 +58,20 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         actions: [
+          // Theme Toggle Widget
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: themeNotifier,
+            builder: (context, mode, child) {
+              return LightDarkThemeToggle(
+                value: mode == ThemeMode.light,
+                onChanged: (bool isLight) {
+                  themeNotifier.value =
+                      isLight ? ThemeMode.light : ThemeMode.dark;
+                },
+                size: 28,
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.document_scanner),
             tooltip: 'Scan Document',
