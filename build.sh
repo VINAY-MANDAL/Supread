@@ -11,9 +11,9 @@ echo "Starting APK build..."
 flutter clean
 flutter build apk --release --split-per-abi
 
-if [ -f "build/app/outputs/apk/release/app-release.apk" ]; then
-    echo "SUCCESS: APK built successfully!"
-    ls -lh build/app/outputs/apk/release/app-release.apk
+if [ -d "build/app/outputs/flutter-apk/" ]; then
+    echo "SUCCESS: APKs built successfully in build/app/outputs/flutter-apk/"
+    ls -lh build/app/outputs/flutter-apk/*.apk
 else
     echo "ERROR: APK not found. Build may have failed."
     exit 1
