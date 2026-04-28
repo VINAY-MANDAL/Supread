@@ -9,12 +9,12 @@ class PdfAnnotationService {
       filePath: path,
     );
 
-    if (result?.isSuccess ?? false) {
+    if (result.isSuccess ?? false) {
       debugPrint("PDF processed successfully");
-    } else if (result?.isCancelled ?? false) {
+    } else if (result.isCancelled ?? false) {
       debugPrint('User cancelled');
     } else {
-      debugPrint('Error: ${result?.error}');
+      debugPrint('Error: ${result.error}');
     }
     return result;
   }
