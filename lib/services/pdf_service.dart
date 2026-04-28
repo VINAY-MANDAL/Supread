@@ -9,6 +9,8 @@ import '../models/pdf_file_data.dart';
 class PdfService {
   static const _recentKey = 'recent_pdfs';
 
+  static final Uri _updateUri =
+      Uri.parse('https://supread.netlify.app/update.json');
   // ─── Pick a PDF file from device ──────────────────────────────────────────
   static Future<PdfFileData?> pickPdf() async {
     try {
