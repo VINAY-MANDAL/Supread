@@ -63,7 +63,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(
                   '$_currentPage / $_totalPages',
-                  style: const TextStyle(fontSize: 14),
+                  style: const TextStyle(fontSize: 15),
                 ),
               ),
             ),
