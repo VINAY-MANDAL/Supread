@@ -9,9 +9,9 @@ class PdfAnnotationService {
       filePath: path,
     );
 
-    if (result.isSuccess ?? false) {
+    if (result.isSuccess) {
       debugPrint("PDF processed successfully");
-    } else if (result.isCancelled ?? false) {
+    } else if (result.isCancelled) {
       debugPrint('User cancelled');
     } else {
       debugPrint('Error: ${result.error}');
@@ -28,7 +28,7 @@ class PdfAnnotationService {
       config: PDFAnnotationConfig(
         title: 'Review Contract',
         initialPenColor: Colors.red,
-        initialHighlightColor: Colors.yellow.withOpacity(0.5),
+        initialHighlightColor: Colors.yellow.withValues(alpha: 0.5),
         initialStrokeWidth: 3.0,
         initialPage: 2,
         locale: PdfLocale.arabic,
@@ -43,7 +43,7 @@ class PdfAnnotationService {
       headers: {
         'Authorization': 'Bearer your_token',
       },
-      config: PDFAnnotationConfig(title: 'Remote PDF'),
+      config: const PDFAnnotationConfig(title: 'Remote PDF'),
     );
   }
 
@@ -51,7 +51,7 @@ class PdfAnnotationService {
   static Future<PdfAnnotationResult?> openBytes(Uint8List bytes) async {
     return await FlutterPdfAnnotations.openFromBytes(
       bytes: bytes,
-      config: PDFAnnotationConfig(title: 'PDF from Bytes'),
+      config: const PDFAnnotationConfig(title: 'PDF from Bytes'),
     );
   }
 
