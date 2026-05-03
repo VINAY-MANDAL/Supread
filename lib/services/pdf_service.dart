@@ -86,7 +86,7 @@ class PdfService {
   // ─── Save recent — native ─────────────────────────────────────────────────
   static Future<void> _saveRecent(String path, String name) async {
     final prefs = await SharedPreferences.getInstance();
-    final list = _getRawRecentList(prefs.getString(_recentKey));
+    var list = _getRawRecentList(prefs.getString(_recentKey));
     list.removeWhere((e) => e['path'] == path);
     list.insert(0, {'path': path, 'name': name, 'platform': 'native'});
     if (list.length > 20) list = list.sublist(0, 20);
@@ -96,7 +96,7 @@ class PdfService {
   // ─── Save recent — web ────────────────────────────────────────────────────
   static Future<void> _saveRecentWeb(String name, List<int> bytes) async {
     final prefs = await SharedPreferences.getInstance();
-    final list = _getRawRecentList(prefs.getString(_recentKey));
+    var list = _getRawRecentList(prefs.getString(_recentKey));
     final fileId = base64Encode(bytes.sublist(0, min(100, bytes.length)));
     list.removeWhere((e) => e['id'] == fileId);
     list.insert(0, {
