@@ -3,6 +3,15 @@ allprojects {
         google()
         mavenCentral()
     }
+    configurations.all {
+        resolutionStrategy {
+            eachDependency {
+                if (requested.group == "androidx.cardview" && requested.name == "cardview") {
+                    useVersion("1.0.0")
+                }
+            }
+        }
+    }
 }
 
 val newBuildDir: Directory =
