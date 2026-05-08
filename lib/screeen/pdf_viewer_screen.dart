@@ -27,6 +27,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   bool _showAnnotationToolbar = false;
   PdfAnnotationMode _activeMode = PdfAnnotationMode.none;
 
+  // FIX 3: Zoom level track karne ke liye
+  double _zoomLevel = 1.0;
+  static const double _minZoom = 0.5;
+  static const double _maxZoom = 5.0;
+  static const double _zoomStep = 0.25;
+
   bool get _isImage {
     final n = widget.pdfData.name.toLowerCase();
     return n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png');
@@ -37,6 +43,20 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     final next = (_activeMode == mode) ? PdfAnnotationMode.none : mode;
     setState(() => _activeMode = next);
     _controller.annotationMode = next;
+  }
+
+  // FIX 3: Zoom in - max limit ke saath
+  void _zoomIn() {
+    final newZoom = (_zoomLevel + _zoomStep).clamp(_minZoom, _maxZoom);
+    setState(() => _zoomLevel = newZoom);
+    _controller.zoomLevel = newZoom;
+  }
+
+  // FIX 3: Zoom out - min limit ke saath
+  void _zoomOut() {
+    final newZoom = (_zoomLevel - _zoomStep).clamp(_minZoom, _maxZoom);
+    setState(() => _zoomLevel = newZoom);
+    _controller.zoomLevel = newZoom;
   }
 
   // ── Share ────────────────────────────────────────────────────────────────
@@ -130,14 +150,17 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             IconButton(
                 icon: const Icon(Icons.find_in_page),
                 onPressed: _showGoToPageDialog),
+          // FIX 3: Zoom buttons ab properly kaam karenge
           if (!_isImage)
             IconButton(
                 icon: const Icon(Icons.zoom_in),
-                onPressed: () => _controller.zoomLevel += 0.25),
+                tooltip: 'Zoom In',
+                onPressed: _zoomLevel < _maxZoom ? _zoomIn : null),
           if (!_isImage)
             IconButton(
                 icon: const Icon(Icons.zoom_out),
-                onPressed: () => _controller.zoomLevel -= 0.25),
+                tooltip: 'Zoom Out',
+                onPressed: _zoomLevel > _minZoom ? _zoomOut : null),
         ],
       ),
       body: Column(
@@ -147,6 +170,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           Expanded(child: _isImage ? _buildImageViewer() : _buildPdfViewer()),
         ],
       ),
+      // FIX 4: Patla bottom nav
       bottomNavigationBar: _isImage ? null : _buildBottomNav(),
     );
   }
@@ -226,8 +250,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                       ),
                     );
                     if (ok == true) {
-                      _snack(
-                          'Clear all annotations feature not available in this version.');
+                      _controller.removeAllAnnotations();
                     }
                   },
                 ),
@@ -287,7 +310,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       message: 'Eraser (select & delete)',
       child: GestureDetector(
         onTap: () {
-          // Switch to selection mode — user taps an annotation then deletes it
           setState(() {
             _activeMode = PdfAnnotationMode.none;
             _controller.annotationMode = PdfAnnotationMode.none;
@@ -347,14 +369,16 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       uio.File(widget.pdfData.path!),
       key: _pdfViewerKey,
       controller: _controller,
+      // FIX 3: Initial zoom 1.0 se shuru hoga (actual size)
+      initialZoomLevel: 1.0,
       onPageChanged: (d) => setState(() => _currentPage = d.newPageNumber),
       onDocumentLoaded: (d) => setState(() {
         _currentPage = 1;
         _totalPages = d.document.pages.count;
+        // Document load hone ke baad zoom reset
+        _zoomLevel = 1.0;
       }),
-      // Allow annotation selection so user can delete by tapping
       onAnnotationSelected: (annotation) {
-        // When eraser mode: immediately remove selected annotation
         if (_activeMode == PdfAnnotationMode.none) {
           showDialog(
             context: context,
@@ -398,10 +422,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       Uint8List.fromList(webBytes),
       key: _pdfViewerKey,
       controller: _controller,
+      // FIX 3: Web viewer mein bhi initial zoom
+      initialZoomLevel: 1.0,
       onPageChanged: (d) => setState(() => _currentPage = d.newPageNumber),
       onDocumentLoaded: (d) => setState(() {
         _currentPage = 1;
         _totalPages = d.document.pages.count;
+        _zoomLevel = 1.0;
       }),
     );
   }
@@ -434,38 +461,63 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  BOTTOM NAV
+  //  FIX 4: PATLA BOTTOM NAV — height 40, padding zero
   // ════════════════════════════════════════════════════════════════════════
   Widget _buildBottomNav() {
-    return BottomAppBar(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          IconButton(
-              icon: const Icon(Icons.first_page),
+    return SizedBox(
+      height: 40, // <-- Yahan height control karo (default tha ~80px)
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        elevation: 4,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _navBtn(
+              icon: Icons.first_page,
               tooltip: 'First Page',
-              onPressed: () => _controller.jumpToPage(1)),
-          IconButton(
-              icon: const Icon(Icons.navigate_before),
+              onPressed: () => _controller.jumpToPage(1),
+            ),
+            _navBtn(
+              icon: Icons.navigate_before,
               tooltip: 'Previous',
-              onPressed: () {
-                if (_currentPage > 1) {
-                  _controller.jumpToPage(_currentPage - 1);
-                }
-              }),
-          IconButton(
-              icon: const Icon(Icons.navigate_next),
+              onPressed: _currentPage > 1
+                  ? () => _controller.jumpToPage(_currentPage - 1)
+                  : null,
+            ),
+            _navBtn(
+              icon: Icons.navigate_next,
               tooltip: 'Next',
-              onPressed: () {
-                if (_currentPage < _totalPages) {
-                  _controller.jumpToPage(_currentPage + 1);
-                }
-              }),
-          IconButton(
-              icon: const Icon(Icons.last_page),
+              onPressed: _currentPage < _totalPages
+                  ? () => _controller.jumpToPage(_currentPage + 1)
+                  : null,
+            ),
+            _navBtn(
+              icon: Icons.last_page,
               tooltip: 'Last Page',
-              onPressed: () => _controller.jumpToPage(_totalPages)),
-        ],
+              onPressed: () => _controller.jumpToPage(_totalPages),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Slim nav button — padding zero
+  Widget _navBtn({
+    required IconData icon,
+    required String tooltip,
+    VoidCallback? onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: Icon(icon, size: 20),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        onPressed: onPressed,
+        color: onPressed != null
+            ? Theme.of(context).colorScheme.onSurface
+            : Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
       ),
     );
   }
