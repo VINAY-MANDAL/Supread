@@ -1,5 +1,6 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 project(adhyay_pdf_reader LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
