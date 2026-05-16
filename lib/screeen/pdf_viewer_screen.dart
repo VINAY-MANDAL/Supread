@@ -75,8 +75,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       _snack('File not found for sharing.');
       return;
     }
-    await Share.shareXFiles([XFile(path)],
-        text: 'Document: ${widget.pdfData.name}');
+    await SharePlus.instance.share(
+      ShareParams(
+          files: [XFile(path)], text: 'Document: ${widget.pdfData.name}'),
+    );
   }
 
   void _snack(String msg) =>
@@ -236,7 +238,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   icon: Icons.delete_forever,
                   label: 'Clear All',
                   onTap: () {
-                    _pdfViewerKey.currentState?.clearSelection();
+                    // Annotation mode band karo
+                    setState(() {
+                      _activeMode = PdfAnnotationMode.none;
+                      _controller.annotationMode = PdfAnnotationMode.none;
+                    });
+                    _snack('Select an annotation and tap it to delete.');
                   },
                 ),
               ],
@@ -527,9 +534,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         onPressed: onPressed,
         color: onPressed != null
             ? Theme.of(context).colorScheme.onSurface
-            : Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
       ),
     );
   }
 }
- 
