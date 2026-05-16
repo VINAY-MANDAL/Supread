@@ -39,6 +39,27 @@
                 <data android:scheme="file" />
                 <data android:scheme="content" />
                 <data android:mimeType="application/pdf" />
+                <!-- ✅ PDF "Open With" support -->
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:mimeType="application/pdf" />
+</intent-filter>
+
+<!-- ✅ File manager se bhi open ho sake -->
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:scheme="file" />
+    <data android:mimeType="application/pdf" />
+</intent-filter>
+
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:scheme="content" />
+    <data android:mimeType="application/pdf" />
+</intent-filter>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

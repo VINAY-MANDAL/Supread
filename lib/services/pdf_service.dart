@@ -56,8 +56,7 @@ class PdfService {
     return null;
   }
 
-  // ✅ FIXED: Save a scanned file (called from ScannerScreen)
-  // Returns PdfFileData so caller can open it directly if needed
+  // ─── Save a scanned file ───────────────────────────────────────────────────
   static Future<PdfFileData?> saveScannedFile({
     required String path,
     required String name,
@@ -71,7 +70,7 @@ class PdfService {
     }
   }
 
-  // Helper to decode the list safely and avoid repetition
+  // ─── Helper to decode recent list ────────────────────────────────────────
   static List<Map<String, dynamic>> _getRawRecentList(String? raw) {
     if (raw == null || raw.isEmpty) return [];
     try {
@@ -87,8 +86,18 @@ class PdfService {
   static Future<void> _saveRecent(String path, String name) async {
     final prefs = await SharedPreferences.getInstance();
     var list = _getRawRecentList(prefs.getString(_recentKey));
+    // Existing entry ki lastPage preserve karo
+    final existingIdx = list.indexWhere((e) => e['path'] == path);
+    final lastPage =
+        existingIdx != -1 ? (list[existingIdx]['lastPage'] ?? 1) : 1;
     list.removeWhere((e) => e['path'] == path);
-    list.insert(0, {'path': path, 'name': name, 'platform': 'native'});
+    list.insert(0, {
+      'path': path,
+      'name': name,
+      'platform': 'native',
+      'lastViewed': DateTime.now().millisecondsSinceEpoch,
+      'lastPage': lastPage,
+    });
     if (list.length > 20) list = list.sublist(0, 20);
     await prefs.setString(_recentKey, jsonEncode(list));
   }
@@ -98,21 +107,33 @@ class PdfService {
     final prefs = await SharedPreferences.getInstance();
     var list = _getRawRecentList(prefs.getString(_recentKey));
     final fileId = base64Encode(bytes.sublist(0, min(100, bytes.length)));
+    final existingIdx = list.indexWhere((e) => e['id'] == fileId);
+    final lastPage =
+        existingIdx != -1 ? (list[existingIdx]['lastPage'] ?? 1) : 1;
     list.removeWhere((e) => e['id'] == fileId);
     list.insert(0, {
       'id': fileId,
       'name': name,
       'bytes': base64Encode(bytes),
       'platform': 'web',
+      'lastViewed': DateTime.now().millisecondsSinceEpoch,
+      'lastPage': lastPage,
     });
     if (list.length > 20) list = list.sublist(0, 20);
     await prefs.setString(_recentKey, jsonEncode(list));
   }
 
-  // ─── Load recent PDFs ─────────────────────────────────────────────────────
+  // ─── Load recent PDFs — sorted by lastViewed (newest first) ──────────────
   static Future<List<PdfFileData>> getRecent() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = _getRawRecentList(prefs.getString(_recentKey));
+    var list = _getRawRecentList(prefs.getString(_recentKey));
+
+    // lastViewed ke hisab se sort karo (naya upar)
+    list.sort((a, b) {
+      final aTime = (a['lastViewed'] as int?) ?? 0;
+      final bTime = (b['lastViewed'] as int?) ?? 0;
+      return bTime.compareTo(aTime);
+    });
 
     return list.map((map) {
       if (map['platform'] == 'web') {
@@ -131,13 +152,77 @@ class PdfService {
     }).toList();
   }
 
-  // ✅ Delete one file from recent list
+  // ─── Jab file open ho to uski lastViewed timestamp update karo ────────────
+  // Isse list mein wo file top par aa jaati hai
+  static Future<void> touchRecent(PdfFileData file) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = _getRawRecentList(prefs.getString(_recentKey));
+
+    bool found = false;
+    for (final item in list) {
+      if (file.isWeb) {
+        final targetId = file.identifier;
+        if (item['platform'] == 'web' && item['id'] == targetId) {
+          item['lastViewed'] = DateTime.now().millisecondsSinceEpoch;
+          found = true;
+          break;
+        }
+      } else if (item['path'] == file.path) {
+        item['lastViewed'] = DateTime.now().millisecondsSinceEpoch;
+        found = true;
+        break;
+      }
+    }
+
+    if (found) {
+      await prefs.setString(_recentKey, jsonEncode(list));
+    }
+  }
+
+  // ─── Last page save karo ─────────────────────────────────────────────────
+  static Future<void> saveLastPage(PdfFileData file, int page) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = _getRawRecentList(prefs.getString(_recentKey));
+
+    for (final item in list) {
+      if (file.isWeb) {
+        final targetId = file.identifier;
+        if (item['platform'] == 'web' && item['id'] == targetId) {
+          item['lastPage'] = page;
+          break;
+        }
+      } else if (item['path'] == file.path) {
+        item['lastPage'] = page;
+        break;
+      }
+    }
+    await prefs.setString(_recentKey, jsonEncode(list));
+  }
+
+  // ─── Last page load karo ─────────────────────────────────────────────────
+  static Future<int> getLastPage(PdfFileData file) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = _getRawRecentList(prefs.getString(_recentKey));
+
+    for (final item in list) {
+      if (file.isWeb) {
+        final targetId = file.identifier;
+        if (item['platform'] == 'web' && item['id'] == targetId) {
+          return (item['lastPage'] as int?) ?? 1;
+        }
+      } else if (item['path'] == file.path) {
+        return (item['lastPage'] as int?) ?? 1;
+      }
+    }
+    return 1;
+  }
+
+  // ─── Delete one file from recent list ────────────────────────────────────
   static Future<void> deleteRecent(PdfFileData fileToRemove) async {
     final prefs = await SharedPreferences.getInstance();
     final list = _getRawRecentList(prefs.getString(_recentKey));
 
     if (fileToRemove.isWeb) {
-      // Use the identifier (hash) instead of name for better accuracy
       final targetId = fileToRemove.identifier;
       list.removeWhere((e) => e['platform'] == 'web' && e['id'] == targetId);
     } else {
@@ -147,7 +232,7 @@ class PdfService {
     await prefs.setString(_recentKey, jsonEncode(list));
   }
 
-  // ✅ Rename a file in the recent list
+  // ─── Rename a file in the recent list ────────────────────────────────────
   static Future<void> renameRecent(PdfFileData file, String newName) async {
     final prefs = await SharedPreferences.getInstance();
     final list = _getRawRecentList(prefs.getString(_recentKey));

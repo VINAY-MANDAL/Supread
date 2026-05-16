@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:universal_io/io.dart' as uio;
 import '../models/pdf_file_data.dart';
+import '../services/pdf_service.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   final PdfFileData pdfData;
@@ -27,7 +28,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   bool _showAnnotationToolbar = false;
   PdfAnnotationMode _activeMode = PdfAnnotationMode.none;
 
-  // FIX 3: Zoom level track karne ke liye
+  // Zoom level
   double _zoomLevel = 1.0;
   static const double _minZoom = 0.5;
   static const double _maxZoom = 5.0;
@@ -38,6 +39,14 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     return n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png');
   }
 
+  @override
+  void initState() {
+    super.initState();
+    // File khulte hi lastViewed update karo — isse recent list mein yahi file
+    // upar aa jaayegi
+    PdfService.touchRecent(widget.pdfData);
+  }
+
   // ── Annotation mode toggle ───────────────────────────────────────────────
   void _setMode(PdfAnnotationMode mode) {
     final next = (_activeMode == mode) ? PdfAnnotationMode.none : mode;
@@ -45,14 +54,14 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     _controller.annotationMode = next;
   }
 
-  // FIX 3: Zoom in - max limit ke saath
+  // Zoom in
   void _zoomIn() {
     final newZoom = (_zoomLevel + _zoomStep).clamp(_minZoom, _maxZoom);
     setState(() => _zoomLevel = newZoom);
     _controller.zoomLevel = newZoom;
   }
 
-  // FIX 3: Zoom out - min limit ke saath
+  // Zoom out
   void _zoomOut() {
     final newZoom = (_zoomLevel - _zoomStep).clamp(_minZoom, _maxZoom);
     setState(() => _zoomLevel = newZoom);
@@ -150,7 +159,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             IconButton(
                 icon: const Icon(Icons.find_in_page),
                 onPressed: _showGoToPageDialog),
-          // FIX 3: Zoom buttons ab properly kaam karenge
           if (!_isImage)
             IconButton(
                 icon: const Icon(Icons.zoom_in),
@@ -165,12 +173,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       ),
       body: Column(
         children: [
-          // Annotation toolbar slides in from the top
           if (_showAnnotationToolbar && !_isImage) _buildAnnotationToolbar(),
           Expanded(child: _isImage ? _buildImageViewer() : _buildPdfViewer()),
         ],
       ),
-      // FIX 4: Patla bottom nav
       bottomNavigationBar: _isImage ? null : _buildBottomNav(),
     );
   }
@@ -187,7 +193,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Tool row ──────────────────────────────────────────────────
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -216,10 +221,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   mode: PdfAnnotationMode.squiggly,
                 ),
                 const SizedBox(width: 8),
-                // ── Eraser ─────────────────────────────────────────────
                 _eraserBtn(),
                 const SizedBox(width: 4),
-                // ── Undo ──────────────────────────────────────────────
                 _iconActionBtn(
                   icon: Icons.undo,
                   label: 'Undo',
@@ -229,29 +232,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   },
                 ),
                 const SizedBox(width: 4),
-                // ── Clear All ─────────────────────────────────────────
                 _iconActionBtn(
-                  icon: Icons.clear_all,
+                  icon: Icons.delete_forever,
                   label: 'Clear All',
-                  onTap: () async {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('Clear all annotations?'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel')),
-                          TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Clear',
-                                  style: TextStyle(color: Colors.red))),
-                        ],
-                      ),
-                    );
-                    if (ok == true) {
-                      _controller.removeAllAnnotations();
-                    }
+                  onTap: () {
+                    _pdfViewerKey.currentState?.clearSelection();
                   },
                 ),
               ],
@@ -267,25 +252,20 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     required String label,
     required PdfAnnotationMode mode,
   }) {
-    final isActive = _activeMode == mode;
     final theme = Theme.of(context);
+    final isActive = _activeMode == mode;
     return Tooltip(
       message: label,
       child: GestureDetector(
         onTap: () => _setMode(mode),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: isActive
-                ? theme.colorScheme.primary.withOpacity(0.25)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isActive ? theme.colorScheme.primary : Colors.transparent,
-              width: 2,
-            ),
-          ),
+          decoration: isActive
+              ? BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : null,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -369,15 +349,32 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       uio.File(widget.pdfData.path!),
       key: _pdfViewerKey,
       controller: _controller,
-      // FIX 3: Initial zoom 1.0 se shuru hoga (actual size)
       initialZoomLevel: 1.0,
-      onPageChanged: (d) => setState(() => _currentPage = d.newPageNumber),
-      onDocumentLoaded: (d) => setState(() {
-        _currentPage = 1;
-        _totalPages = d.document.pages.count;
-        // Document load hone ke baad zoom reset
-        _zoomLevel = 1.0;
-      }),
+      // ✅ Page change hone par save karo
+      onPageChanged: (d) {
+        setState(() => _currentPage = d.newPageNumber);
+        PdfService.saveLastPage(widget.pdfData, d.newPageNumber);
+      },
+      // ✅ Document load hone par saved page par jump karo
+      onDocumentLoaded: (d) async {
+        final total = d.document.pages.count;
+        setState(() {
+          _totalPages = total;
+          _zoomLevel = 1.0;
+        });
+        // Saved page fetch karo
+        final savedPage = await PdfService.getLastPage(widget.pdfData);
+        if (savedPage > 1 && savedPage <= total) {
+          // Viewer ko render hone ka time do
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) {
+            _controller.jumpToPage(savedPage);
+            setState(() => _currentPage = savedPage);
+          }
+        } else {
+          setState(() => _currentPage = 1);
+        }
+      },
       onAnnotationSelected: (annotation) {
         if (_activeMode == PdfAnnotationMode.none) {
           showDialog(
@@ -422,14 +419,28 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       Uint8List.fromList(webBytes),
       key: _pdfViewerKey,
       controller: _controller,
-      // FIX 3: Web viewer mein bhi initial zoom
       initialZoomLevel: 1.0,
-      onPageChanged: (d) => setState(() => _currentPage = d.newPageNumber),
-      onDocumentLoaded: (d) => setState(() {
-        _currentPage = 1;
-        _totalPages = d.document.pages.count;
-        _zoomLevel = 1.0;
-      }),
+      onPageChanged: (d) {
+        setState(() => _currentPage = d.newPageNumber);
+        PdfService.saveLastPage(widget.pdfData, d.newPageNumber);
+      },
+      onDocumentLoaded: (d) async {
+        final total = d.document.pages.count;
+        setState(() {
+          _totalPages = total;
+          _zoomLevel = 1.0;
+        });
+        final savedPage = await PdfService.getLastPage(widget.pdfData);
+        if (savedPage > 1 && savedPage <= total) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) {
+            _controller.jumpToPage(savedPage);
+            setState(() => _currentPage = savedPage);
+          }
+        } else {
+          setState(() => _currentPage = 1);
+        }
+      },
     );
   }
 
@@ -461,11 +472,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  FIX 4: PATLA BOTTOM NAV — height 40, padding zero
+  //  BOTTOM NAV — height 40
   // ════════════════════════════════════════════════════════════════════════
   Widget _buildBottomNav() {
     return SizedBox(
-      height: 40, // <-- Yahan height control karo (default tha ~80px)
+      height: 40,
       child: Material(
         color: Theme.of(context).colorScheme.surface,
         elevation: 4,
@@ -502,7 +513,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     );
   }
 
-  // Slim nav button — padding zero
   Widget _navBtn({
     required IconData icon,
     required String tooltip,
@@ -522,3 +532,4 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     );
   }
 }
+ 

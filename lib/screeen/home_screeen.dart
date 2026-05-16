@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:light_dark_theme_toggle/light_dark_theme_toggle.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../services/pdf_service.dart';
 import '../models/pdf_file_data.dart';
 import 'pdf_viewer_screen.dart';
@@ -17,10 +20,69 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<PdfFileData> recentFiles = [];
 
+  // ✅ Open With — bahar se aane wali files ke liye subscription
+  StreamSubscription? _intentSub;
+
   @override
   void initState() {
     super.initState();
     _loadRecent();
+    _setupOpenWith();
+  }
+
+  @override
+  void dispose() {
+    _intentSub?.cancel();
+    super.dispose();
+  }
+
+  // ✅ "Open With" setup — dono cases handle karta hai:
+  // 1. App pehle se chal rahi ho aur koi PDF bahar se open kare
+  // 2. PDF se directly app pehli baar khuli ho
+  void _setupOpenWith() {
+    // App running ho tab bahar se aane wali files
+    _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((files) {
+      if (files.isNotEmpty && mounted) {
+        _openExternalFile(files.first.path);
+      }
+    });
+
+    // App band thi, PDF se khuli ho
+    ReceiveSharingIntent.instance.getInitialMedia().then((files) {
+      if (files.isNotEmpty && mounted) {
+        _openExternalFile(files.first.path);
+        // Intent clear karo taaki dobara trigger na ho
+        ReceiveSharingIntent.instance.reset();
+      }
+    });
+  }
+
+  // ✅ Bahar se aayi PDF file ko open karo aur recents mein save karo
+  Future<void> _openExternalFile(String? path) async {
+    if (path == null) return;
+    final file = File(path);
+    if (!file.existsSync()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File not found.')),
+        );
+      }
+      return;
+    }
+
+    final name = path.split('/').last;
+    // Recents mein save karo
+    await PdfService.saveScannedFile(path: path, name: name);
+    _loadRecent();
+
+    final pdfData = PdfFileData(name: name, path: path, isWeb: false);
+    if (mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => PdfViewerScreen(pdfData: pdfData)),
+      );
+      _loadRecent();
+    }
   }
 
   Future<void> _loadRecent() async {
@@ -53,7 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Adhyay'),
         actions: [
-          // Theme Toggle Widget
+          // Theme Toggle
           ValueListenableBuilder<ThemeMode>(
             valueListenable: themeNotifier,
             builder: (context, mode, child) {
@@ -67,38 +129,14 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+          // Scanner
           IconButton(
             icon: const Icon(Icons.document_scanner),
             tooltip: 'Scan Document',
             onPressed: _openScanner,
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_sweep),
-            tooltip: 'Clear All Recents',
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Clear All Recents?'),
-                  content: const Text(
-                      'This will remove all recent files from the list.'),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Clear',
-                            style: TextStyle(color: Colors.red))),
-                  ],
-                ),
-              );
-              if (confirmed == true) {
-                await PdfService.clearRecent();
-                _loadRecent();
-              }
-            },
-          ),
+          // ✅ "Clear All" button HATA DIYA — galti se press hone se bacha
+          // Agar zaroorat ho to RecentsFileCard ke popup menu se ek-ek delete kar sakte hain
         ],
       ),
       body: recentFiles.isEmpty
@@ -122,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 file: recentFiles[index],
                 onDeleted: _loadRecent,
                 onRenamed: _loadRecent,
-                onOpen: (file) => _openFileInApp(file), // ✅ In-app viewer
+                onOpen: (file) => _openFileInApp(file),
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
