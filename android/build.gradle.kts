@@ -31,3 +31,26 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+
+subprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin("kotlin-android")) {
+            project.kotlin {
+                jvmToolchain(17)
+            }
+        }
+    }
+}
+
+android {
+    ...
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
